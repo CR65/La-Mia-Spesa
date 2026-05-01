@@ -998,9 +998,8 @@ function showToast(msg) {
 
 // SCANNER
 let isPremium = true;
-let scannerStream = null;
 let scannedProductData = null;
-let codeReader = null;
+let html5QrCode = null;
 
 function openScanner() {
   document.getElementById('scanner-modal').classList.add('open');
@@ -1021,45 +1020,59 @@ function closeScannerIfOutside(e) {
 function startScanner() {
   document.getElementById('scanner-premium').style.display = 'none';
   document.getElementById('scanner-active').style.display = 'block';
-  document.getElementById('scanner-result').textContent = 'Inquadra il codice a barre del prodotto';
+  document.getElementById('scanner-result').textContent = 'Caricamento fotocamera...';
   document.getElementById('scanner-product').style.display = 'none';
 
-  if (typeof ZXing === 'undefined') {
-    document.getElementById('scanner-result').textContent = 'Caricamento scanner...';
+  if (typeof Html5Qrcode === 'undefined') {
     const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.4/umd/index.min.js';
-    script.onload = () => initZXing();
+    script.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
+    script.onload = () => initScanner();
+    script.onerror = () => {
+      document.getElementById('scanner-result').textContent = 'Errore caricamento scanner. Controlla la connessione.';
+    };
     document.head.appendChild(script);
   } else {
-    initZXing();
+    initScanner();
   }
 }
 
-function initZXing() {
-  try {
-    codeReader = new ZXingBrowser.BrowserMultiFormatReader();
-    codeReader.decodeFromVideoDevice(null, 'scanner-video', (result, err) => {
-      if (result) {
-        stopScanner();
-        lookupBarcode(result.getText());
-        document.getElementById('scanner-active').style.display = 'block';
-        document.getElementById('scanner-premium').style.display = 'none';
-      }
-    });
-  } catch(e) {
-    document.getElementById('scanner-result').textContent = 'Errore fotocamera. Controlla i permessi.';
+function initScanner() {
+  const videoEl = document.getElementById('scanner-video');
+  videoEl.style.display = 'none';
+  
+  let scannerDiv = document.getElementById('html5-scanner-div');
+  if (!scannerDiv) {
+    scannerDiv = document.createElement('div');
+    scannerDiv.id = 'html5-scanner-div';
+    scannerDiv.style.cssText = 'width:100%;border-radius:16px;overflow:hidden;';
+    videoEl.parentNode.insertBefore(scannerDiv, videoEl);
   }
+
+  html5QrCode = new Html5Qrcode('html5-scanner-div');
+  html5QrCode.start(
+    { facingMode: 'environment' },
+    { fps: 10, qrbox: { width: 220, height: 100 } },
+    (decodedText) => {
+      html5QrCode.stop().then(() => {
+        lookupBarcode(decodedText);
+      });
+    },
+    () => {}
+  ).then(() => {
+    document.getElementById('scanner-result').textContent = 'Inquadra il codice a barre del prodotto';
+  }).catch(() => {
+    document.getElementById('scanner-result').textContent = 'Fotocamera non disponibile. Controlla i permessi.';
+  });
 }
 
 function stopScanner() {
-  if (codeReader) {
-    try { codeReader.reset(); } catch(e) {}
-    codeReader = null;
+  if (html5QrCode) {
+    html5QrCode.stop().catch(() => {});
+    html5QrCode = null;
   }
-  if (scannerStream) {
-    scannerStream.getTracks().forEach(t => t.stop());
-    scannerStream = null;
-  }
+  document.getElementById('scanner-premium').style.display = 'block';
+  document.getElementById('scanner-active').style.display = 'none';
+  document.getElementById('scanner-product').style.display = 'none';
 }
 
 async function lookupBarcode(code) {
@@ -1080,7 +1093,7 @@ async function lookupBarcode(code) {
       document.getElementById('scanner-product').style.display = 'block';
     } else {
       document.getElementById('scanner-result').textContent = 'Prodotto non trovato. Riprova.';
-      if (codeReader) initZXing();
+      initScanner();
     }
   } catch(e) {
     document.getElementById('scanner-result').textContent = 'Errore di rete. Riprova.';
