@@ -1000,7 +1000,7 @@ function showToast(msg) {
 let isPremium = true;
 let scannerStream = null;
 let scannedProductData = null;
-let scanInterval = null;
+let codeReader = null;
 
 function openScanner() {
   document.getElementById('scanner-modal').classList.add('open');
@@ -1021,43 +1021,45 @@ function closeScannerIfOutside(e) {
 function startScanner() {
   document.getElementById('scanner-premium').style.display = 'none';
   document.getElementById('scanner-active').style.display = 'block';
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
-    .then(stream => {
-      scannerStream = stream;
-      const video = document.getElementById('scanner-video');
-      video.srcObject = stream;
-      scanInterval = setInterval(tryScanBarcode, 1000);
-    })
-    .catch(() => {
-      document.getElementById('scanner-result').textContent = 'Camera non disponibile. Riprova.';
+  document.getElementById('scanner-result').textContent = 'Inquadra il codice a barre del prodotto';
+  document.getElementById('scanner-product').style.display = 'none';
+
+  if (typeof ZXing === 'undefined') {
+    document.getElementById('scanner-result').textContent = 'Caricamento scanner...';
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.1.4/umd/index.min.js';
+    script.onload = () => initZXing();
+    document.head.appendChild(script);
+  } else {
+    initZXing();
+  }
+}
+
+function initZXing() {
+  try {
+    codeReader = new ZXingBrowser.BrowserMultiFormatReader();
+    codeReader.decodeFromVideoDevice(null, 'scanner-video', (result, err) => {
+      if (result) {
+        stopScanner();
+        lookupBarcode(result.getText());
+        document.getElementById('scanner-active').style.display = 'block';
+        document.getElementById('scanner-premium').style.display = 'none';
+      }
     });
+  } catch(e) {
+    document.getElementById('scanner-result').textContent = 'Errore fotocamera. Controlla i permessi.';
+  }
 }
 
 function stopScanner() {
-  if (scannerStream) { scannerStream.getTracks().forEach(t => t.stop()); scannerStream = null; }
-  clearInterval(scanInterval);
-  document.getElementById('scanner-premium').style.display = 'block';
-  document.getElementById('scanner-active').style.display = 'none';
-  document.getElementById('scanner-product').style.display = 'none';
-  document.getElementById('scanner-result').textContent = 'Inquadra il codice a barre del prodotto';
-}
-
-async function tryScanBarcode() {
-  if (!('BarcodeDetector' in window)) {
-    document.getElementById('scanner-result').textContent = 'Scanner non supportato da questo browser. Usa Chrome su Android.';
-    clearInterval(scanInterval);
-    return;
+  if (codeReader) {
+    try { codeReader.reset(); } catch(e) {}
+    codeReader = null;
   }
-  const video = document.getElementById('scanner-video');
-  const detector = new BarcodeDetector({ formats: ['ean_13', 'ean_8', 'upc_a', 'upc_e'] });
-  try {
-    const barcodes = await detector.detect(video);
-    if (barcodes.length > 0) {
-      clearInterval(scanInterval);
-      const code = barcodes[0].rawValue;
-      lookupBarcode(code);
-    }
-  } catch(e) {}
+  if (scannerStream) {
+    scannerStream.getTracks().forEach(t => t.stop());
+    scannerStream = null;
+  }
 }
 
 async function lookupBarcode(code) {
@@ -1078,11 +1080,10 @@ async function lookupBarcode(code) {
       document.getElementById('scanner-product').style.display = 'block';
     } else {
       document.getElementById('scanner-result').textContent = 'Prodotto non trovato. Riprova.';
-      scanInterval = setInterval(tryScanBarcode, 1000);
+      if (codeReader) initZXing();
     }
   } catch(e) {
     document.getElementById('scanner-result').textContent = 'Errore di rete. Riprova.';
-    scanInterval = setInterval(tryScanBarcode, 1000);
   }
 }
 
