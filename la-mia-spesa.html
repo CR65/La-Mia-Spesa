@@ -176,6 +176,20 @@
   .toast { position:fixed; top:20px; left:50%; transform:translateX(-50%) translateY(-80px); background:#0f172a; color:white; padding:10px 20px; border-radius:30px; font-size:14px; font-weight:600; z-index:999; transition:transform 0.3s; white-space:nowrap; }
   .toast.show { transform:translateX(-50%) translateY(0); }
 
+  /* CATALOG */
+  .catalog-item { display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px solid var(--border); }
+  .catalog-item:last-child { border-bottom:none; }
+  .catalog-item-left { display:flex; align-items:center; gap:10px; }
+  .catalog-emoji { font-size:24px; width:36px; text-align:center; }
+  .catalog-name { font-size:15px; font-weight:600; }
+  .catalog-item-right { display:flex; align-items:center; gap:8px; }
+  .catalog-qty { font-size:14px; font-weight:700; min-width:20px; text-align:center; }
+  .catalog-btn { width:30px; height:30px; border-radius:8px; border:none; cursor:pointer; font-size:18px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+  .catalog-btn-add { background:var(--green); color:white; }
+  .catalog-btn-remove { background:#fef2f2; color:#dc2626; }
+  .catalog-btn-add:active, .catalog-btn-remove:active { transform:scale(0.9); }
+  .catalog-add-all { background:var(--green); color:white; border:none; border-radius:12px; padding:14px; font-size:15px; font-weight:600; cursor:pointer; width:100%; margin-top:12px; }
+
   .loading { display:flex; align-items:center; justify-content:center; height:100vh; background:var(--card); flex-direction:column; gap:12px; }
   .spinner { width:36px; height:36px; border:3px solid var(--border); border-top-color:var(--green); border-radius:50%; animation:spin 0.7s linear infinite; }
   @keyframes spin { to { transform:rotate(360deg); } }
@@ -431,6 +445,22 @@
   </div>
 </div>
 
+<!-- CATALOG MODAL -->
+<div class="modal-overlay" id="catalog-modal" onclick="closeCatalogIfOutside(event)">
+  <div class="modal" style="max-height:85vh;overflow-y:auto;padding-bottom:24px;">
+    <div class="modal-handle"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h2 id="catalog-title">Frutta e Verdura</h2>
+      <div onclick="closeCatalogModal()" style="cursor:pointer;font-size:20px;color:var(--text2);">✕</div>
+    </div>
+    <div id="catalog-list"></div>
+    <div style="margin-top:16px;border-top:1px solid var(--border);padding-top:16px;">
+      <div style="font-size:13px;color:var(--text2);margin-bottom:10px;font-weight:600;">NON TROVI IL PRODOTTO?</div>
+      <button class="btn btn-outline" style="margin-top:0;" onclick="closeCatalogModal();openAddModal();">+ Aggiungi manualmente</button>
+    </div>
+  </div>
+</div>
+
 <!-- ADD PRODUCT MODAL -->
 <div class="modal-overlay" id="add-modal" onclick="closeIfOutside(event)">
   <div class="modal">
@@ -654,9 +684,136 @@ function checkout() {
   showToast('✓ Spesa completata! € ' + total.toFixed(2));
 }
 
+// CATALOG DATA
+const catalogData = {
+  'Frutta e Verdura': [
+    {name:'Cipolla',emoji:'🧅'},{name:'Aglio',emoji:'🧄'},{name:'Patate',emoji:'🥔'},
+    {name:'Pomodori',emoji:'🍅'},{name:'Insalata',emoji:'🥗'},{name:'Carote',emoji:'🥕'},
+    {name:'Zucchine',emoji:'🥒'},{name:'Melanzane',emoji:'🍆'},{name:'Peperoni',emoji:'🫑'},
+    {name:'Spinaci',emoji:'🌿'},{name:'Broccoli',emoji:'🥦'},{name:'Cavolfiore',emoji:'🥦'},
+    {name:'Mele',emoji:'🍎'},{name:'Banane',emoji:'🍌'},{name:'Arance',emoji:'🍊'},
+    {name:'Limoni',emoji:'🍋'},{name:'Uva',emoji:'🍇'},{name:'Pere',emoji:'🍐'},
+    {name:'Fragole',emoji:'🍓'},{name:'Cetrioli',emoji:'🥒'}
+  ],
+  'Carne e Pesce': [
+    {name:'Pollo',emoji:'🍗'},{name:'Manzo',emoji:'🥩'},{name:'Maiale',emoji:'🥩'},
+    {name:'Tacchino',emoji:'🦃'},{name:'Agnello',emoji:'🍖'},{name:'Salsicce',emoji:'🌭'},
+    {name:'Wurstel',emoji:'🌭'},{name:'Prosciutto cotto',emoji:'🥩'},{name:'Bresaola',emoji:'🥩'},
+    {name:'Pancetta',emoji:'🥓'},{name:'Salmone',emoji:'🐟'},{name:'Tonno',emoji:'🐟'},
+    {name:'Merluzzo',emoji:'🐠'},{name:'Gamberi',emoji:'🦐'},{name:'Cozze',emoji:'🦪'},
+    {name:'Sardine',emoji:'🐟'},{name:'Pesce spada',emoji:'🐡'},{name:'Calamari',emoji:'🦑'},
+    {name:'Acciughe',emoji:'🐟'},{name:'Trota',emoji:'🐟'}
+  ],
+  'Latticini': [
+    {name:'Latte',emoji:'🥛'},{name:'Uova',emoji:'🥚'},{name:'Burro',emoji:'🧈'},
+    {name:'Parmigiano',emoji:'🧀'},{name:'Mozzarella',emoji:'🧀'},{name:'Ricotta',emoji:'🧀'},
+    {name:'Yogurt bianco',emoji:'🥛'},{name:'Yogurt alla frutta',emoji:'🫙'},{name:'Panna',emoji:'🥛'},
+    {name:'Gorgonzola',emoji:'🧀'},{name:'Pecorino',emoji:'🧀'},{name:'Provolone',emoji:'🧀'},
+    {name:'Scamorza',emoji:'🧀'},{name:'Crescenza',emoji:'🧀'},{name:'Fontina',emoji:'🧀'},
+    {name:'Mascarpone',emoji:'🧀'},{name:'Stracchino',emoji:'🧀'},{name:'Kefir',emoji:'🥛'},
+    {name:'Latte scremato',emoji:'🥛'},{name:'Fiocchi di latte',emoji:'🧀'}
+  ],
+  'Pane e Cereali': [
+    {name:'Pane bianco',emoji:'🍞'},{name:'Pane integrale',emoji:'🍞'},{name:'Grissini',emoji:'🥖'},
+    {name:'Pasta spaghetti',emoji:'🍝'},{name:'Pasta penne',emoji:'🍝'},{name:'Pasta rigatoni',emoji:'🍝'},
+    {name:'Riso',emoji:'🍚'},{name:'Farina 00',emoji:'🌾'},{name:'Farina integrale',emoji:'🌾'},
+    {name:'Crackers',emoji:'🫓'},{name:'Fette biscottate',emoji:'🫓'},{name:'Cereali colazione',emoji:'🌾'},
+    {name:'Avena',emoji:'🌾'},{name:'Mais',emoji:'🌽'},{name:'Orzo',emoji:'🌾'},
+    {name:'Polenta',emoji:'🌽'},{name:'Pane in cassetta',emoji:'🍞'},{name:'Crostini',emoji:'🫓'},
+    {name:'Gallette di riso',emoji:'🫓'},{name:'Pancarrè',emoji:'🍞'}
+  ],
+  'Bevande': [
+    {name:'Acqua naturale',emoji:'💧'},{name:'Acqua frizzante',emoji:'💧'},{name:'Succo arancia',emoji:'🍊'},
+    {name:'Succo mela',emoji:'🍎'},{name:'Coca Cola',emoji:'🥤'},{name:'Aranciata',emoji:'🥤'},
+    {name:'Birra',emoji:'🍺'},{name:'Vino rosso',emoji:'🍷'},{name:'Vino bianco',emoji:'🥂'},
+    {name:'Caffè',emoji:'☕'},{name:'Tè',emoji:'🍵'},{name:'Latte di soia',emoji:'🥛'},
+    {name:'Latte di avena',emoji:'🥛'},{name:'Camomilla',emoji:'🍵'},{name:'Energy drink',emoji:'⚡'},
+    {name:'Limonata',emoji:'🍋'},{name:'Kefir da bere',emoji:'🥛'},{name:'Smoothie',emoji:'🥤'},
+    {name:'Brodo vegetale',emoji:'🍲'},{name:'Prosecco',emoji:'🥂'}
+  ],
+  'Altro': [
+    {name:'Olio oliva',emoji:'🫙'},{name:'Sale',emoji:'🧂'},{name:'Pepe',emoji:'🌶'},
+    {name:'Zucchero',emoji:'🍬'},{name:'Miele',emoji:'🍯'},{name:'Ketchup',emoji:'🍅'},
+    {name:'Maionese',emoji:'🫙'},{name:'Senape',emoji:'🫙'},{name:'Aceto',emoji:'🫙'},
+    {name:'Detersivo piatti',emoji:'🧴'},{name:'Detersivo bucato',emoji:'🧺'},{name:'Carta igienica',emoji:'🧻'},
+    {name:'Fazzoletti',emoji:'🧻'},{name:'Sapone mani',emoji:'🧼'},{name:'Shampoo',emoji:'🧴'},
+    {name:'Dentifricio',emoji:'🪥'},{name:'Spugne',emoji:'🧽'},{name:'Sacchetti',emoji:'🛍'},
+    {name:'Pellicola',emoji:'📦'},{name:'Stagnola',emoji:'📦'}
+  ]
+};
+
+let catalogQuantities = {};
+
 function filterCat(cat) {
   selectedCat = cat;
-  openAddModal();
+  openCatalogModal(cat);
+}
+
+function openCatalogModal(cat) {
+  catalogQuantities = {};
+  selectedCat = cat;
+  document.getElementById('catalog-title').textContent = cat;
+  renderCatalog();
+  document.getElementById('catalog-modal').classList.add('open');
+}
+
+function closeCatalogModal() {
+  document.getElementById('catalog-modal').classList.remove('open');
+}
+
+function closeCatalogIfOutside(e) {
+  if (e.target === document.getElementById('catalog-modal')) closeCatalogModal();
+}
+
+function renderCatalog() {
+  const products = catalogData[selectedCat] || [];
+  const color = getCatColor(selectedCat);
+  let html = products.map((p, i) => {
+    const qty = catalogQuantities[i] || 0;
+    return `<div class="catalog-item" id="cat-item-${i}">
+      <div class="catalog-item-left">
+        <div class="catalog-emoji">${p.emoji}</div>
+        <div class="catalog-name">${p.name}</div>
+      </div>
+      <div class="catalog-item-right">
+        ${qty > 0 ? `<button class="catalog-btn catalog-btn-remove" onclick="catQty(${i},-1)">−</button>
+        <div class="catalog-qty">${qty}</div>` : ''}
+        <button class="catalog-btn catalog-btn-add" onclick="catQty(${i},1)" style="background:${color};">+</button>
+      </div>
+    </div>`;
+  }).join('');
+  const total = Object.values(catalogQuantities).reduce((s,v)=>s+v,0);
+  if (total > 0) {
+    html += `<button class="catalog-add-all" style="background:${color};" onclick="addAllFromCatalog()">✓ Aggiungi ${total} prodott${total===1?'o':'i'} al carrello</button>`;
+  }
+  document.getElementById('catalog-list').innerHTML = html;
+}
+
+function catQty(index, delta) {
+  catalogQuantities[index] = Math.max(0, (catalogQuantities[index] || 0) + delta);
+  renderCatalog();
+}
+
+function addAllFromCatalog() {
+  const products = catalogData[selectedCat] || [];
+  let added = 0;
+  Object.entries(catalogQuantities).forEach(([i, qty]) => {
+    if (qty > 0) {
+      const p = products[parseInt(i)];
+      const item = { id: Date.now().toString() + i, name: p.name, category: selectedCat, price: 0, qty };
+      cart.push(item);
+      saveCartItem(item);
+      added += qty;
+    }
+  });
+  updateUI();
+  closeCatalogModal();
+  showToast('✓ ' + added + ' prodott' + (added===1?'o':'i') + ' aggiunti al carrello');
+}
+
+function filterCat(cat) {
+  selectedCat = cat;
+  openCatalogModal(cat);
 }
 
 function getTotal() {
