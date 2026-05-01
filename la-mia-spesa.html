@@ -743,6 +743,7 @@ const catalogData = {
 };
 
 let catalogQuantities = {};
+let catalogPrices = {};
 
 function filterCat(cat) {
   selectedCat = cat;
@@ -751,6 +752,7 @@ function filterCat(cat) {
 
 function openCatalogModal(cat) {
   catalogQuantities = {};
+  catalogPrices = {};
   selectedCat = cat;
   document.getElementById('catalog-title').textContent = cat;
   renderCatalog();
@@ -770,15 +772,26 @@ function renderCatalog() {
   const color = getCatColor(selectedCat);
   let html = products.map((p, i) => {
     const qty = catalogQuantities[i] || 0;
+    const price = catalogPrices[i] || '';
     return `<div class="catalog-item" id="cat-item-${i}">
-      <div class="catalog-item-left">
-        <div class="catalog-emoji">${p.emoji}</div>
-        <div class="catalog-name">${p.name}</div>
-      </div>
-      <div class="catalog-item-right">
-        ${qty > 0 ? `<button class="catalog-btn catalog-btn-remove" onclick="catQty(${i},-1)">−</button>
-        <div class="catalog-qty">${qty}</div>` : ''}
-        <button class="catalog-btn catalog-btn-add" onclick="catQty(${i},1)" style="background:${color};">+</button>
+      <div style="flex:1;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:${qty>0?'6px':'0'};">
+          <div class="catalog-emoji">${p.emoji}</div>
+          <div class="catalog-name">${p.name}</div>
+          <button onclick="removeCatalogProduct(${i})" style="margin-left:auto;background:#fef2f2;border:none;color:#dc2626;border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:14px;">✕</button>
+        </div>
+        ${qty > 0 ? `<div style="display:flex;align-items:center;gap:8px;padding-left:46px;">
+          <input type="number" placeholder="€ prezzo" step="0.01" min="0" value="${price}"
+            onchange="catalogPrices[${i}]=parseFloat(this.value)||0"
+            style="width:90px;padding:6px 8px;border:1.5px solid var(--border);border-radius:8px;font-size:13px;outline:none;">
+          <div style="display:flex;align-items:center;gap:6px;margin-left:auto;">
+            <button class="catalog-btn catalog-btn-remove" onclick="catQty(${i},-1)">−</button>
+            <div class="catalog-qty">${qty}</div>
+            <button class="catalog-btn catalog-btn-add" onclick="catQty(${i},1)" style="background:${color};">+</button>
+          </div>
+        </div>` : `<div style="padding-left:46px;">
+          <button class="catalog-btn catalog-btn-add" onclick="catQty(${i},1)" style="background:${color};width:auto;padding:0 14px;font-size:13px;font-weight:600;">+ Aggiungi</button>
+        </div>`}
       </div>
     </div>`;
   }).join('');
@@ -794,13 +807,21 @@ function catQty(index, delta) {
   renderCatalog();
 }
 
+function removeCatalogProduct(index) {
+  catalogData[selectedCat].splice(index, 1);
+  delete catalogQuantities[index];
+  delete catalogPrices[index];
+  renderCatalog();
+}
+
 function addAllFromCatalog() {
   const products = catalogData[selectedCat] || [];
   let added = 0;
   Object.entries(catalogQuantities).forEach(([i, qty]) => {
     if (qty > 0) {
       const p = products[parseInt(i)];
-      const item = { id: Date.now().toString() + i, name: p.name, category: selectedCat, price: 0, qty };
+      const price = catalogPrices[parseInt(i)] || 0;
+      const item = { id: Date.now().toString() + i, name: p.name, category: selectedCat, price, qty };
       cart.push(item);
       saveCartItem(item);
       added += qty;
