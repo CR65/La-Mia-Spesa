@@ -999,13 +999,10 @@ function showToast(msg) {
 // SCANNER
 let isPremium = true;
 let scannedProductData = null;
-let html5QrCode = null;
 
 function openScanner() {
   document.getElementById('scanner-modal').classList.add('open');
-  if (isPremium) {
-    startScanner();
-  }
+  if (isPremium) startScanner();
 }
 
 function closeScannerModal() {
@@ -1020,59 +1017,66 @@ function closeScannerIfOutside(e) {
 function startScanner() {
   document.getElementById('scanner-premium').style.display = 'none';
   document.getElementById('scanner-active').style.display = 'block';
-  document.getElementById('scanner-result').textContent = 'Caricamento fotocamera...';
+  document.getElementById('scanner-result').textContent = 'Caricamento scanner...';
   document.getElementById('scanner-product').style.display = 'none';
 
-  if (typeof Html5Qrcode === 'undefined') {
+  const videoEl = document.getElementById('scanner-video');
+  videoEl.style.display = 'none';
+
+  let scanDiv = document.getElementById('quagga-div');
+  if (!scanDiv) {
+    scanDiv = document.createElement('div');
+    scanDiv.id = 'quagga-div';
+    scanDiv.style.cssText = 'width:100%;border-radius:16px;overflow:hidden;position:relative;';
+    videoEl.parentNode.insertBefore(scanDiv, videoEl);
+  }
+  scanDiv.innerHTML = '';
+
+  if (typeof Quagga === 'undefined') {
     const script = document.createElement('script');
-    script.src = 'https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js';
-    script.onload = () => initScanner();
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js';
+    script.onload = () => initQuagga();
     script.onerror = () => {
-      document.getElementById('scanner-result').textContent = 'Errore caricamento scanner. Controlla la connessione.';
+      document.getElementById('scanner-result').textContent = 'Errore caricamento. Riprova.';
     };
     document.head.appendChild(script);
   } else {
-    initScanner();
+    initQuagga();
   }
 }
 
-function initScanner() {
-  const videoEl = document.getElementById('scanner-video');
-  videoEl.style.display = 'none';
-  
-  let scannerDiv = document.getElementById('html5-scanner-div');
-  if (!scannerDiv) {
-    scannerDiv = document.createElement('div');
-    scannerDiv.id = 'html5-scanner-div';
-    scannerDiv.style.cssText = 'width:100%;border-radius:16px;overflow:hidden;';
-    videoEl.parentNode.insertBefore(scannerDiv, videoEl);
-  }
-
-  html5QrCode = new Html5Qrcode('html5-scanner-div');
-  html5QrCode.start(
-    { facingMode: 'environment' },
-    { fps: 10, qrbox: { width: 220, height: 100 } },
-    (decodedText) => {
-      html5QrCode.stop().then(() => {
-        lookupBarcode(decodedText);
-      });
+function initQuagga() {
+  Quagga.init({
+    inputStream: {
+      name: 'Live',
+      type: 'LiveStream',
+      target: document.getElementById('quagga-div'),
+      constraints: { facingMode: 'environment', width: 640, height: 480 }
     },
-    () => {}
-  ).then(() => {
+    decoder: {
+      readers: ['ean_reader', 'ean_8_reader', 'upc_reader', 'upc_e_reader', 'code_128_reader']
+    },
+    locate: true
+  }, err => {
+    if (err) {
+      document.getElementById('scanner-result').textContent = 'Fotocamera non disponibile. Controlla i permessi.';
+      return;
+    }
+    Quagga.start();
     document.getElementById('scanner-result').textContent = 'Inquadra il codice a barre del prodotto';
-  }).catch(() => {
-    document.getElementById('scanner-result').textContent = 'Fotocamera non disponibile. Controlla i permessi.';
+  });
+
+  Quagga.onDetected(data => {
+    const code = data.codeResult.code;
+    stopScanner();
+    document.getElementById('scanner-active').style.display = 'block';
+    document.getElementById('scanner-premium').style.display = 'none';
+    lookupBarcode(code);
   });
 }
 
 function stopScanner() {
-  if (html5QrCode) {
-    html5QrCode.stop().catch(() => {});
-    html5QrCode = null;
-  }
-  document.getElementById('scanner-premium').style.display = 'block';
-  document.getElementById('scanner-active').style.display = 'none';
-  document.getElementById('scanner-product').style.display = 'none';
+  try { Quagga.stop(); } catch(e) {}
 }
 
 async function lookupBarcode(code) {
@@ -1093,7 +1097,7 @@ async function lookupBarcode(code) {
       document.getElementById('scanner-product').style.display = 'block';
     } else {
       document.getElementById('scanner-result').textContent = 'Prodotto non trovato. Riprova.';
-      initScanner();
+      initQuagga();
     }
   } catch(e) {
     document.getElementById('scanner-result').textContent = 'Errore di rete. Riprova.';
